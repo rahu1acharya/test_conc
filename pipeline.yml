@@ -1,0 +1,205 @@
+resources:
+  - name: py-script
+    type: git
+    source:
+      uri: "https://github.com/rahu1acharya/concourse.git"
+      branch: main
+
+jobs:
+  - name: fetch-secrets
+    plan:
+      - get: py-script
+        trigger: true
+      - task: fetch-secrets-task
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: vault
+              tag: "1.13.3"
+          inputs:
+            - name: py-script
+          outputs:
+            - name: secrets-output
+          run:
+            path: sh
+            args:
+              - py-script/fetch-secrets.sh
+        params:
+          VAULT_ADDR: ((VAULT_ADDR))
+          VAULT_TOKEN: ((VAULT_TOKEN))
+      
+
+      - task: run-scrape-task
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: python
+              tag: "3.9"  
+          inputs:
+            - name: py-script
+            - name: secrets-output
+          outputs:
+            - name: scraped-data
+          run:
+            path: sh
+            args:
+              - py-script/run_comp-pl.sh
+
+
+  - name: parallel-balancesheet
+    plan:
+      - get: py-script
+        trigger: true
+      - task: fetch-secrets
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: vault
+              tag: "1.13.3"
+          inputs:
+            - name: py-script
+          outputs:
+            - name: secrets-output
+          run:
+            path: sh
+            args:
+              - py-script/fetch-secrets.sh
+        params:
+          VAULT_ADDR: ((VAULT_ADDR))
+          VAULT_TOKEN: ((VAULT_TOKEN))
+
+      - task: run-scrape-bs-task
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: python
+              tag: "3.9"  
+          inputs:
+            - name: py-script
+            - name: secrets-output
+          outputs:
+            - name: scraped-data-parallel
+          run:
+            path: sh
+            args:
+              - py-script/run_comp-bs.sh
+
+
+# resources:
+#   - name: py-script
+#     type: git
+#     source:
+#       uri: "https://github.com/rahu1acharya/concourse.git"
+#       branch: main
+
+# jobs:
+#   - name: fetch-secrets
+#     plan:
+#       - get: py-script
+#       - task: fetch-secrets-task
+#         config:
+#           platform: linux
+#           image_resource:
+#             type: docker-image
+#             source:
+#               repository: vault
+#               tag: "1.13.3"
+#           inputs:
+#             - name: py-script
+#           outputs:
+#             - name: secrets-output
+#           run:
+#             path: sh
+#             args:
+#               - -c
+#               - |
+#                 # Set Vault address and token
+#                 VAULT_ADDR="http://192.168.56.1:8200"
+#                 VAULT_TOKEN="rahul"
+
+#                 export VAULT_ADDR
+#                 export VAULT_TOKEN
+
+#                 username=$(vault kv get -field=username secret/cred)
+#                 password=$(vault kv get -field=password secret/cred)
+                
+#                 echo "USERNAME=$username" > secrets-output/secrets.env
+#                 echo "PASSWORD=$password" >> secrets-output/secrets.env
+#                 chmod 600 secrets-output/secrets.env
+                
+#                 # Debugging: List the contents of the secrets directory
+#                 echo "Contents of secrets-output directory:"
+#                 ls -l secrets-output
+                
+#                 # Debugging: Print the contents of the secrets file
+#                 echo "Contents of secrets.env:"
+#                 cat secrets-output/secrets.env
+
+#       - task: run-scrape-task
+#         config:
+#           platform: linux
+#           image_resource:
+#             type: docker-image
+#             source:
+#               repository: python
+#               tag: "3.9"  # or any other version you need
+#           inputs:
+#             - name: py-script
+#             - name: secrets-output
+#           outputs:
+#             - name: scraped-data
+#           run:
+#             path: sh
+#             args:
+#               - -c
+#               - |
+#                 # Install dependencies
+#                 apt-get update
+#                 apt-get install -y wget unzip curl
+#                 apt-get install -y libxss1 libappindicator3-1 libindicator7 libnss3 libgdk-pixbuf2.0-0 libx11-xcb1 libxcomposite1 libxdamage1 libxtst6 libxrandr2 libgconf-2-4
+
+#                 # Install Google Chrome
+#                 wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+#                 dpkg -i google-chrome-stable_current_amd64.deb
+#                 apt-get -f install -y
+
+#                 # Determine the correct ChromeDriver version
+#                 CHROMEDRIVER_VERSION=$(wget -qO- https://chromedriver.storage.googleapis.com/LATEST_RELEASE)
+#                 echo "ChromeDriver version: $CHROMEDRIVER_VERSION"
+                
+#                 # Install ChromeDriver
+#                 wget https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip
+#                 unzip chromedriver_linux64.zip
+#                 mv chromedriver ../scraped-data/
+
+#                 # Install Python dependencies
+#                 pip install requests pandas sqlalchemy psycopg2-binary selenium
+
+#                 # Load environment variables from secrets file
+#                 echo "Contents of secrets.env:"
+#                 cat secrets-output/secrets.env
+#                 set -a
+#                 . secrets-output/secrets.env
+#                 set +a
+
+#                 # Navigate to the directory containing scrape1.py
+#                 cd py-script
+
+#                 # Run the scrape1.py script
+#                 python scrape1.py
+
+#                 # Move the output CSV to the output directory
+#                 mkdir /scraped-data
+#                 mv reliance_data10.csv ../scraped-data/
+                
+#                 # Print the contents of the CSV file
+#                 echo "Contents of reliance_data10.csv in scraped-data directory:"
+#                 cat ../scraped-data/reliance_data10.csv

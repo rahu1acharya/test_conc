@@ -1,0 +1,16 @@
+# Use the official Vault image from HashiCorp
+FROM vault:1.13.3
+
+# Set environment variables for Vault (adjust if needed)
+ENV VAULT_ADDR=http://0.0.0.0:8200
+ENV VAULT_DEV_ROOT_TOKEN_ID=rahul
+
+# Expose Vault's port
+EXPOSE 8200
+
+COPY fetch_secrets.sh /usr/local/bin/fetch_secrets.sh
+
+RUN chmod +x /usr/local/bin/fetch_secrets.sh
+
+# Default command to run Vault server in development mode
+CMD ["vault", "server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
